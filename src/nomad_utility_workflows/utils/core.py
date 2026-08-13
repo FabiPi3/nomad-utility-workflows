@@ -1,4 +1,5 @@
 import logging
+from json import JSONDecodeError
 from typing import Any, Optional, TypedDict
 
 import requests
@@ -114,7 +115,12 @@ def get_nomad_request(
         }
     response = requests.get(url, headers=headers, timeout=timeout_in_sec)
     if not response.status_code == STATUS_CODE:
-        raise ValueError(f'Unexpected response {response.json()}')
+        try:
+            json_response = response.json()
+        except JSONDecodeError as e:
+            json_response = (f"Couldn't decode response: {e}. Status code: {response.status_code}. "
+                             f"Content: {response.content}")
+        raise ValueError(f'Unexpected response {json_response}')
     if return_json:
         return response.json()
     return response.content
@@ -217,7 +223,12 @@ def post_nomad_request(
         url, headers=headers, json=json_dict, data=data, timeout=timeout_in_sec
     )
     if not response.status_code == STATUS_CODE:
-        raise ValueError(f'Unexpected response {response.json()}')
+        try:
+            json_response = response.json()
+        except JSONDecodeError as e:
+            json_response = (f"Couldn't decode response: {e}. Status code: {response.status_code}. "
+                             f"Content: {response.content}")
+        raise ValueError(f'Unexpected response {json_response}')
     return response.json()
 
 
@@ -255,5 +266,50 @@ def delete_nomad_request(
     logger.info('Sending delete request @ %s', url)
     response = requests.delete(url, headers=headers, timeout=timeout_in_sec)
     if not response.status_code == STATUS_CODE:
-        raise ValueError(f'Unexpected response {response.json()}')
+        try:
+            json_response = response.json()
+        except JSONDecodeError as e:
+            json_response = (f"Couldn't decode response: {e}. Status code: {response.status_code}. "
+                             f"Content: {response.content}")
+        raise ValueError(f'Unexpected response {json_response}')
+    return response.json()
+
+
+def put_nomad_request(
+    request_options: RequestOptions = default_request_options.copy(),
+    data: Any = None,
+    json_dict: dict = None,
+) -> Any:
+    """_summary_"""
+    section = request_options.get('section')
+    url = request_options.get('url')
+    timeout_in_sec = request_options.get('timeout_in_sec')
+    headers = request_options.get('headers')
+    with_authentication = request_options.get('with_authentication')
+
+    if headers is None:
+        headers = {}
+    if with_authentication:
+        token = get_authentication_token(url=url)
+        headers |= {
+            'Authorization': f'Bearer {token}',
+            'Accept': 'application/json',
+        }
+    if data is None:
+        data = {}
+    if json_dict is None:
+        json_dict = {}
+    url = get_nomad_url(url)
+    url += f'{"/" if section[0] != "/" else ""}{section}'
+    logger.info('Sending put request @ %s', url)
+    response = requests.put(
+        url, headers=headers, json=json_dict, data=data, timeout=timeout_in_sec
+    )
+    if not response.status_code == STATUS_CODE:
+        try:
+            json_response = response.json()
+        except JSONDecodeError as e:
+            json_response = (f"Couldn't decode response: {e}. Status code: {response.status_code}. "
+                             f"Content: {response.content}")
+        raise ValueError(f'Unexpected response {json_response}')
     return response.json()
